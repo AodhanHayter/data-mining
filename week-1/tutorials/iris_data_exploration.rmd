@@ -1,0 +1,459 @@
+---
+title: "Iris Data Exploration Rmarkdown"
+author: "Olivia Sheng"
+output:
+  html_document:
+    theme: readable
+    highlight: breezedark
+    number_sections: yes
+    toc: yes
+    fig_width: 25
+    fig_height: 15
+editor_options: 
+  chunk_output_type: console
+---
+# Data description
+This is perhaps the best known database to be found in the pattern recognition literature.The data set contains 3 classes of 50 instances each, where each class refers to a type of iris plant.  One class is linearly separable from the other 2; the latter are NOT linearly separable from each other.
+
+Iris images: https://www.researchgate.net/figure/220371329_fig2_Fig-5-Iris-Setosa-Versicolor-and-Virginica-flowers-The-photos-are-from
+
+Target variable: class of iris plant. 
+
+Number of Instances: 150 (50 in each of three classes)
+
+Number of Attributes: 4 numeric, predictive attributes and the class variable
+
+Attribute Information:
+1. sepal length in cm
+2. sepal width in cm
+3. petal length in cm
+4. petal width in cm
+5. class: Iris Setosa, Iris Versicolour, Iris Virginica
+
+```{r Setup and overall data inspection}
+### R already has an iris data frame
+library(tictoc) 
+tic()
+
+### Remeber to get help from the Help Pane using "?CommandName"
+
+?iris
+
+### Examine the overall data frame
+
+# str() shows the number of observations, and the number, names, types and some values of columns
+
+str(iris)
+
+
+## You can retrieve and save the number of rows and number of coloumns of a data frame
+
+nrow(iris)
+row <- nrow(iris)
+row
+
+col <- ncol(iris)
+col
+
+## Show the head and tail rows of a data frame
+
+head(iris)
+
+iris[1:6,]
+
+head(iris, n=1)
+
+iris[1,]
+
+head(iris, n=10)
+
+tail(iris, n = 10)
+
+?head
+
+# summary() shows the mean and the five-number statistics indicating the spread of each column's values
+
+summary(iris)
+```
+# Explore single numeric variables
+```{r Explore single numeric variables}
+### understanding a single variable: numerical variables
+
+## Show summary of one or more columns
+
+summary(iris$Sepal.Length)
+
+summary(iris[c("Sepal.Length", "Sepal.Width")])
+
+## obtain the mean, median, max, min and range of a numeric variable
+
+mean(iris$Sepal.Length)
+median(iris$Sepal.Length)
+
+
+range(iris$Sepal.Length)
+
+max.Sepal.L <- max(iris$Sepal.Length)
+min.Sepal.L <- min(iris$Sepal.Length)
+
+min.Sepal.L
+max.Sepal.L
+
+# calculate the difference of the range
+
+diff.Sepal.L <- max.Sepal.L - min.Sepal.L
+
+diff.Sepal.L
+
+diff(range(iris$Sepal.Length))
+
+# min-max normalization of first observation's Sepal.Length to a value between zero zna 1
+
+iris$Sepal.Length[1]
+
+(iris$Sepal.Length[1] - min.Sepal.L)/diff.Sepal.L
+
+# use quantile to calculate the five-number summary
+
+quantile(iris$Sepal.Length)
+
+# the 1st percentile and the 99th percentile
+
+quantile(iris$Sepal.Length, probs = c(0.01, 0.99))
+
+# quintiles and deciles 
+
+quantile(iris$Sepal.Length, seq(from = 0, to = 1, by = 0.20))
+
+quantile(iris$Sepal.Length, seq(from = 0, to = 1, by = 0.10))
+
+# min-max normalization of Sepal.Length
+iris$Sepal.Length.n <- (iris$Sepal.Length - min.Sepal.L)/diff.Sepal.L
+
+# use quantile to calculate the five-number summary for normalized Sepal.Length
+
+quantile(iris$Sepal.Length.n)
+
+summary(iris$Sepal.Length.n)
+
+# the 1st percentile and the 99th percentile of normalized Sepal.Length
+
+quantile(iris$Sepal.Length.n, probs = c(0.01, 0.99))
+
+# quintiles and deciles of normalized Sepal.Length
+
+quantile(iris$Sepal.Length.n, seq(from = 0, to = 1, by = 0.20))
+
+quantile(iris$Sepal.Length.n, seq(from = 0, to = 1, by = 0.10))
+
+
+# boxplot of a numeric variable
+
+boxplot(iris$Sepal.Length, main = "Boxplot of Sepal Length in the iris data set",
+        ylab = "Sepal Length")
+?IQR
+
+### IQR = 3rdQaurtile - 1stQuartile
+
+### maxline = 3rdQuartile + 1.5*IQR
+
+### minline = 1stQuartile - 1.5*IQR
+
+### one definition of outliers : value > maxline and value < minline are drawn as circles and dots 
+
+# scatter plot of a numeric variable. It becomes too busy for a large number of observations
+
+plot(iris$Sepal.Length)
+
+# histograms of a numeric variable
+
+hist(iris$Sepal.Length, main = "Histogram of Sepal Length in the iris data set",
+     xlab = "Sepal Length")
+
+### For a right skewed distribution, the mean is typically greater than the median
+
+hist(iris$Sepal.Width, main = "Histogram of Sepal Width in the iris data set",
+     xlab = "Sepal Width")
+
+hist(iris$Petal.Length, main = "Histogram of Petal Length in the iris data set",
+     xlab = "Petal Length")
+
+hist(iris$Petal.Width, main = "Histogram of Petal Width in the iris data set",
+     xlab = "Petal Width")
+
+### Search for and understand the meaning of skewed, bimodal and multimodal continuous distributions
+
+## variance and standard deviation of a numeric value
+
+var(iris$Sepal.Length)
+
+sd(iris$Sepal.Length)
+
+var(iris$Sepal.Width)
+
+sd(iris$Sepal.Width)
+```
+# Explore factor variables
+```{r Explore factor variables}
+
+# A factor's distinct values
+
+is.factor(iris$Species)
+
+summary(iris$Species)
+
+nlevels(iris$Species)
+
+str(iris$Species)
+
+is.factor(as.character(iris$Species))
+
+summary(as.character(iris$Species))
+
+# How many of observations contain a factor value?
+
+?table
+
+table(iris$Species)
+
+plot(iris$Species)
+
+plot(iris$Species, main = "Plot of Species in the iris data set",
+     xlab = "Species")
+
+# Why doesn't the following command work?
+
+# barplot(iris$Species,main = "Barplot of Species in the iris data set",
+#       xlab = "Species")
+
+Species.table <- table(iris$Species)
+
+Species.table
+
+barplot(Species.table,main = "Barplot of Species in the iris data set",
+        xlab = "Species")
+
+# compute table proportions
+
+?prop.table
+
+# Run prop.table(iris$Species) to see the error in this command
+
+prop.table(Species.table)
+
+Species.prop <- prop.table(table(iris$Species))
+
+Species.prop
+
+## round decimals 
+
+round(Species.prop, digits = 2)
+
+# another way 
+
+options(digits = 2)
+prop.table(Species.table)
+
+###Remeber to get help from Help Pane using "?"
+
+?round
+?options
+```
+
+# Understand relatioinships of multiple variables
+```{r Understand relatioinships of multiple variables}
+# cor,  boxplot, 2D scatter plot - plot, 3D scatter plot
+
+# scatter plot: two numeric variables
+
+plot(iris[,1:2])
+
+### Generate correlation coefficients of two numeric variables in a 2x2 matrix
+# cor(X,Y) lies between -1 and 1. zero means no correlation. 1 or -1 indicates full correlation
+# positive value means positive correlation and negative values mean negative relationships
+# Examine the components in the formulation for correlation coefficients
+# cor(X,Y) = cov(X,Y)/(sd(X)*sd(Y)) 
+# cov(X,Y) = E[X-E(X)]*E[Y-E(Y)]
+
+cov(iris[1:2])
+var(iris[1:2])
+var(iris[,1])
+sd(iris[,1])
+var(iris[2])
+sd(iris[,2])
+cor(iris[c("Sepal.Length", "Sepal.Width")])
+cor(iris[1:2])
+cor(iris[,1:2])
+
+?cor
+
+## Generate the correlation matrix of all numeric variables
+
+cor(iris[1:4])
+
+# Think about the reason why cor(iris) doesn't run
+
+# Generate 2D scatter plots and correlation coefficients
+
+# Load the psych package. Install it first when necessary.
+
+pairs(iris[1:4])
+
+pairs(iris)
+
+library(psych)
+
+pairs.panels(iris[1:4])
+
+pairs.panels(iris)
+
+##### Examine relationships between numeric variables and factors
+
+### boxplot groups values of a numeric variable based on the values of a factor
+
+boxplot(Petal.Length~Species, data = iris)
+boxplot(Petal.Width~Species, data = iris)
+boxplot(Sepal.Length~Species, data = iris)
+boxplot(Sepal.Width~Species, data = iris)
+
+### The aggregate function
+
+# We can use the aggregate command to aggregate a numeric feature by a categorical one.
+
+# The aggregate function has three parameters
+
+# 1. The numeric value, e.g. sales, to be aggregated to find out, e.g., total of sales,
+#   average of sales, number of sales (i.e. orders).
+
+# 2. The set of categories, product_category and sales_region, on which you wish
+#   to aggregate
+
+# 3.The aggregation function (e.g., sum, mean, length) that you wish to use
+
+aggregate(Petal.Length~Species, summary, data = iris)
+
+aggregate(Petal.Width~Species, summary, data = iris)
+
+
+# scatter plot of numeric values and factor values
+
+plot(iris$Species)
+
+plot(iris$Sepal.Length)
+
+plot(iris$Sepal.Length,iris$Species)
+
+plot(iris$Sepal.Length,iris$Sepal.Width, col = iris$Species, pch = as.numeric((iris$Species)))
+
+with(iris, plot(Sepal.Length,Sepal.Width, col = Species, pch = as.numeric(Species)))
+
+with(iris, plot(Petal.Length,Petal.Width, col = Species, pch = as.numeric(Species), 
+                main = "2d scatter plot of iris data", sub = "Petal Width vs Length"))
+
+palette()
+
+legend('topright', legend = levels(iris$Species),  col = 1:3, cex = 0.8, pch = 1:3)
+
+
+# Generate 3D scatterplot
+
+library(scatterplot3d)
+
+scatterplot3d(iris$Petal.Length,iris$Petal.Width,iris$Sepal.Length, highlight.3d = TRUE, pch = as.numeric(iris$Species), main = "3D scatter plot of iris data")
+
+
+### Another parallel plot and parallel coordinate plot to show relationships between numeric variables and factors
+
+### load the required libraries - lattice and MASS
+### Install these package first or use require(lattice) and require(MASS) to install and load them
+
+
+library(lattice)
+
+parallelplot(~iris[1:4] | Species, data = iris, var.label = TRUE)
+
+
+# Generate parallel coordinate plot
+
+library(MASS) 
+
+parcoord(iris[1:4], col = iris$Species, var.label = TRUE)
+
+palette()
+
+legend('topright', legend = levels(iris$Species),  col = 1:3, cex = 0.8, pch = 1:3)
+```
+
+# Import and Export CSV files
+```{r Import and Export CSV files}
+# setwd specifies working directory where input data and output files are located. For example
+
+cloud_wd <- getwd()
+setwd(cloud_wd)
+
+#Export to a csv file
+
+write.csv(iris,file = "irisfile.csv")
+
+?write.csv
+
+##Export to a file of xls extension by using WriteXLS package
+# install the package "WriteXLS"
+# install.packages("WriteXLS") must be run before rendering an RMarkdown program.
+# Load the package
+library("WriteXLS")
+?WriteXLS
+WriteXLS(iris, ExcelFileName = "irisWriteXLS.xls")
+
+
+# Read irisfile.csv into a data frame. 
+
+iris2 <- read.csv("irisfile.csv", stringsAsFactors = FALSE)
+
+str(iris2)
+
+# What are the differences between iris2 different from iris?
+
+# omit saving row.names or row numbers and change Species to a factor
+
+write.csv(iris,file = "irisfile.csv", row.names = FALSE)
+
+iris2 <- read.csv("irisfile.csv", stringsAsFactors = FALSE)
+
+str(iris2)
+
+iris2$Species < factor(iris2$Species)
+
+str(iris2)
+
+
+# It is a good idea to specify the full path of the file.
+
+iris2 <- read.csv("irisfile.csv")
+
+str(iris2)
+
+# Store the file name 
+
+
+inputfile <- "irisfile.csv"
+
+iris2 <- read.csv(file = inputfile)
+
+str(iris2)
+
+# Find help document by using "?"
+
+?read.csv
+
+# In a rmarkdown program, you cannot browse to select the file to read
+
+# iris2 <- read.csv(file.choose())
+
+# str(iris2)
+
+### End of Iris Data Exploration Tutorial
+toc()
+
+```
+

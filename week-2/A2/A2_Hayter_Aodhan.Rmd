@@ -1,0 +1,141 @@
+---
+title: "A2"
+author: "Aodhan Hayter"
+date: "January 16, 2022"
+output:
+  html_document:
+    theme: readable
+    highlight: breezedark
+    number_sections: yes
+    toc: yes
+    fig_width: 25
+    fig_height: 15
+editor_options:
+  chunk_output_type: console
+---
+
+```{r echo=FALSE}
+library(data.table)
+library(C50)
+library(caret)
+library(rminer)
+```
+
+```{r Setup/Import data}
+input_file <- "../../data/CD_additional_balanced.csv"
+
+work_dir <- getwd()
+setwd(work_dir)
+
+cd_data <- read.csv(input_file, stringsAsFactors = F)
+
+str(cd_data)
+summary(cd_data)
+```
+
+## Inspect and factor dataset
+```{r Inspect / Factor dataset}
+cd_dt <- data.table(cd_data)
+
+factor_cols <- c("job", "marital", "education", "default", "housing", "loan", "contact", "month", "day_of_week", "poutcome", "y")
+for (col in factor_cols)
+  cd_dt[, (col) := as.factor(cd_dt[[col]])]
+
+str(cd_dt)
+summary(cd_dt)
+```
+
+## Target variable
+```{r Count and proportion of y}
+(y_table <- table(cd_dt$y))
+prop.table(y_table)
+```
+
+## Data preparation
+```{r Partition train/test data}
+set.seed(123)
+cd_train_ids <- createDataPartition(cd_dt$y, p = 0.7, list = F)
+
+cd_train <- cd_dt[cd_train_ids,]
+cd_test <- cd_dt[-cd_train_ids,]
+
+prop.table(table(cd_train$y))
+prop.table(table(cd_test$y))
+```
+
+## Train and test decision tree 1: y ~ .
+```{r train decision tree 1}
+(tree_mod_1 <- C5.0(y ~ ., cd_train))
+summary(tree_mod_1)
+```
+
+```{r evaluate model 1 v. test data}
+predicted_mod_1_test <- predict(tree_mod_1, cd_test)
+mmetric(cd_test$y, predicted_mod_1_test, metric = "CONF")
+mmetric(cd_test$y, predicted_mod_1_test, metric = c("ACC", "TPR", "PRECISION", "F1"))
+
+predicted_mod_1_train <- predict(tree_mod_1, cd_train)
+mmetric(cd_train$y, predicted_mod_1_train, metric = "CONF")
+mmetric(cd_train$y, predicted_mod_1_train, metric = c("ACC", "TPR", "PRECISION", "F1"))
+```
+
+## Train and test decision tree 2
+```{r train decision tree 2}
+(tree_mod_2 <- C5.0(y ~ ., cd_train, control = C5.0Control(CF = 0.00005)))
+plot(tree_mod_2)
+summary(tree_mod_2)
+
+predicted_mod_2_test <- predict(tree_mod_2, cd_test)
+mmetric(cd_test$y, predicted_mod_2_test, metric = "CONF")
+mmetric(cd_test$y, predicted_mod_2_test, metric = c("ACC", "TPR", "PRECISION", "F1"))
+
+predicted_mod_2_train <- predict(tree_mod_2, cd_train)
+mmetric(cd_train$y, predicted_mod_2_train, metric = "CONF")
+mmetric(cd_train$y, predicted_mod_2_train, metric = c("ACC", "TPR", "PRECISION", "F1"))
+```
+
+## Train and test decision tree 3
+```{r train decision tree 3}
+cd_no_duration_train <- cd_train[, !"duration"]
+
+(tree_mod_3 <- C5.0(y ~ ., cd_no_duration_train))
+summary(tree_mod_3)
+
+predicted_mod_3_test <- predict(tree_mod_3, cd_test)
+mmetric(cd_test$y, predicted_mod_3_test, metric = "CONF")
+mmetric(cd_test$y, predicted_mod_3_test, metric = c("ACC", "TPR", "PRECISION", "F1"))
+
+predicted_mod_3_train <- predict(tree_mod_3, cd_train)
+mmetric(cd_train$y, predicted_mod_3_train, metric = "CONF")
+mmetric(cd_train$y, predicted_mod_3_train, metric = c("ACC", "TPR", "PRECISION", "F1"))
+```
+
+## Train and test decision tree 4
+```{r train decision tree 4}
+
+(tree_mod_4 <- C5.0(y ~ ., cd_no_duration_train, control = C5.0Control(CF = 0.08)))
+summary(tree_mod_4)
+plot(tree_mod_4)
+
+predicted_mod_4_test <- predict(tree_mod_4, cd_test)
+mmetric(cd_test$y, predicted_mod_4_test, metric = "CONF")
+mmetric(cd_test$y, predicted_mod_4_test, metric = c("ACC", "TPR", "PRECISION", "F1"))
+
+predicted_mod_4_train <- predict(tree_mod_4, cd_train)
+mmetric(cd_train$y, predicted_mod_4_train, metric = "CONF")
+mmetric(cd_train$y, predicted_mod_4_train, metric = c("ACC", "TPR", "PRECISION", "F1"))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+

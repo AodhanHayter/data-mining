@@ -1,0 +1,219 @@
+---
+title: "Multilayerperceptron numeric prediction tutorial using RWeka"
+author: "Aodhan Hayter"
+date: "January 16, 2022"
+output: 
+  html_document:
+    highlight: breezedark
+    number_sections: yes
+    toc: yes
+    fig_width: 15
+    fig_height: 10
+editor_options: 
+  chunk_output_type: console
+---
+# Load packages and import insurance dataset
+```{r Set up and import data}
+# Load the following packages. Install them first if necessary.
+
+library(caret)
+library(RWeka)
+library(rminer)
+library(matrixStats)
+library(knitr)
+# upload tictoc to time the elapsed time of knitting this program. Install it if necessary.
+
+library(tictoc)
+
+tic() # start the timer
+
+# import data
+cloud_wd <- getwd()
+setwd(cloud_wd)
+insurance <- read.csv(file = "./insurance.csv", stringsAsFactors = TRUE)
+str(insurance)
+
+###  Set up cv parameters
+
+df <- insurance
+target <- 7
+seedVal <- 500
+metrics_list <- c("MAE","RMSE","MAPE","RMSPE","RAE","RRSE","R2")
+
+```
+
+#  Examine trained neural network models with different number of hidden nodes in a hidden layer
+```{r Examined trained models}
+
+# Designate a shortened name MLP for the MultilayerPercentron ANN method in RWeka
+
+MLP <- make_Weka_classifier("weka/classifiers/functions/MultilayerPerceptron")
+
+### Review the commands, make_Weka_classifier and Weka_control, in online documents at
+### https://cran.r-project.org/web/packages/RWeka/RWeka.pdf
+### https://cran.r-project.org/web/packages/RWeka/vignettes/RWeka.pdf 
+
+MLP(expenses ~ .,data = insurance)
+
+### Linear Node 0 is the node that combines input from hidden layer nodes using a linear threshold or activation function. The weights are weights on the incoming links from the hidden layer nodes. The threshold here is the same as bias. Linear Node gives output to the Class Node.
+
+### Sigmoid Nodes 1 - 5 correspond to five hidden layer nodes with a Sigmoid activation function.  The weights are weights on the incoming links from the input attribute nodes. Threshold corresponds to the bias for the Sigmoid function. Five is derived from (1 output node + 9 input nodes)/2.
+
+### 9 input (Attrib) nodes (not explicitly shown) correspond to three numeric variables - age, bmi and children and six dummy variables - sex=male, somker=yes and region=northeast, region=northwest, region=southeast, region=wouthwest.
+
+### Review the parameters for the ANN method in RWeka - MultilayerPerceptron in this page - # http://weka.sourceforge.net/doc.dev/weka/classifiers/functions/MultilayerPerceptron.html
+#
+# MLP's default parameter values of MLP,L=0.3,M=0.2, N=500, H='a'
+# L: learning rate with default=0.3
+# M: momemtum with default=0.2
+# N: number of epochs with default=500
+# H <comma separated numbers for nodes on each layer>
+  #The hidden nodes to be created on each layer:
+  # an integer, or the letters 'a' = (# of attribs + # of classes) / 2, 
+  #'i' = # of attribs, 'o' = # of classes, 't' = (# of attribs + # of classes)
+  # default of H is 'a'.
+l <- 0.3
+m <- 0.2
+n <-500
+h <- 'a'
+
+# This MLP call creates the same model using default values
+
+model_a <- MLP(expenses ~ .,data = insurance,control = Weka_control(L=l,M=m, N=n,H=h))  
+
+model_a
+
+# Try different H values
+
+model_0 <- MLP(expenses ~ .,data = insurance,control = Weka_control(L=l,M=m, N=n,H=0))
+
+model_0
+
+model_o <- MLP(expenses ~ .,data = insurance,control = Weka_control(L=l,M=m, N=n,H='o'))
+
+model_o 
+
+model_i <- MLP(expenses ~ .,data = insurance,control = Weka_control(L=l,M=m, N=n,H='i'))
+
+model_i
+
+model_t <- MLP(expenses ~ .,data = insurance,control = Weka_control(L=l,M=m, N=n,H='t'))
+
+model_t
+
+model_11 <- MLP(expenses ~ .,data = insurance,control = Weka_control(L=l,M=m, N=n,H=11))
+
+model_11
+
+# Build an ANN model with two layers of hidden nodes
+
+model_11_11 <- MLP(expenses ~ .,data = insurance,control = Weka_control(L=l,M=m, N=n,H='11,11'))
+
+model_11_11
+
+# Take a look at training performance
+
+summary(model_a)
+summary(model_0)
+summary(model_o) 
+summary(model_i) 
+summary(model_t) 
+summary(model_11)
+summary(model_11_11)
+
+# 0 and 'o' lower performance significantly. 'o' is close to baseline lm.
+
+# Up to a 't', more hidden layer nodes typically improve performance.
+# 't' is better than 11 which better than 'i' 
+
+# Two layers of hidden nodes didn't improve training performance.
+```
+
+# Define a named function for  MLP cross validation
+
+```{r Define a user-defined, named function for CV of MLP with control parameters}
+
+cv_function_MLP <- function(df, target, nFolds, seedVal, metrics_list, l, m, n, h)
+{
+# create folds using the assigned values
+
+set.seed(seedVal)
+folds = createFolds(df[,target],nFolds)
+
+# The lapply loop
+
+cv_results <- lapply(folds, function(x)
+{ 
+# data preparation:
+
+  test_target <- df[x,target]
+  test_input <- df[x,-target]
+  
+  train_target <- df[-x,target]
+  train_input <- df[-x,-target]
+  pred_model <- MLP(train_target ~ .,data = train_input,control = Weka_control(L=l,M=m, N=n,H=h))  
+  pred <- predict(pred_model, test_input)
+  return(mmetric(test_target,pred,metrics_list))
+})
+
+cv_results_m <- as.matrix(as.data.frame(cv_results))
+cv_mean<- as.matrix(rowMeans(cv_results_m))
+cv_sd <- as.matrix(rowSds(cv_results_m))
+colnames(cv_mean) <- "Mean"
+colnames(cv_sd) <- "Sd"
+cv_all <- cbind(cv_results_m, cv_mean, cv_sd)
+kable(t(cbind(cv_mean,cv_sd)),digits=2)
+}
+```
+
+# Call cv_function_MLP with different learning rates, momentums and numbers of epoches
+
+```{r 10-fold cross validations of MLP models}
+
+# different numbers of hidden layer nodes
+
+cv_function_MLP(df, target, 10, seedVal, metrics_list, 0.3, 0.2, 500, 0)
+cv_function_MLP(df, target, 10, seedVal, metrics_list, 0.3, 0.2, 500, 'o')
+cv_function_MLP(df, target, 10, seedVal, metrics_list, 0.3, 0.2, 500, 'i')
+cv_function_MLP(df, target, 10, seedVal, metrics_list, 0.3, 0.2, 500, 't')
+cv_function_MLP(df, target, 10, seedVal, metrics_list, 0.3, 0.2, 500, 11)
+cv_function_MLP(df, target, 10, seedVal, metrics_list, 0.3, 0.2, 500, 'a')
+
+# changing learning rate
+cv_function_MLP(df, target, 10, seedVal, metrics_list, 0.1, 0.2, 500, 'a')
+cv_function_MLP(df, target, 10, seedVal, metrics_list, 0.1, 0.2, 500, 't')
+cv_function_MLP(df, target, 10, seedVal, metrics_list, 0.05, 0.2, 500, 't')
+cv_function_MLP(df, target, 10, seedVal, metrics_list, 0.05, 0.2, 500, 'a')
+
+# changing momentum
+cv_function_MLP(df, target, 10, seedVal, metrics_list, 0.3, 0.1, 500, 'a')
+cv_function_MLP(df, target, 10, seedVal, metrics_list, 0.05, 0.1, 500, 'a')
+
+
+# changing # of epochs
+cv_function_MLP(df, target, 10, seedVal, metrics_list, 0.05, 0.2, 750, 'a')
+cv_function_MLP(df, target, 10, seedVal, metrics_list, 0.3, 0.2, 750, 'a')
+
+
+# two layers of hidden nodes
+cv_function_MLP(df, target, 10, seedVal, metrics_list, 0.3, 0.2, 500, 'a,a')
+cv_function_MLP(df, target, 10, seedVal, metrics_list, 0.05, 0.2, 500, 'a,a')
+
+# A combination of more epochs, more Hidden layer nodes, lower learning rate, and lower momentum could improve testing performance. The improvements so far are not very large.
+# Two layers of hidden nodes didn't improve ANN's testing performance.
+
+# It is very time consuming to try a large number of combinations of parameter settings to find performance improvements.  Time investment is worth it if the improvements have high real world impact.
+# Try other parameter values for your interest. E.g.,
+# cv_function_MLP(df, target, 10, seedVal, metrics_list, 0.01, 0.2, 1000, 't')
+# cv_function_MLP(df, target, 10, seedVal, metrics_list, 0.3, 0.2, 1000, 't')
+
+toc() # stop timing the elapsed time of knitting the program.
+
+### end of tutorial
+
+```
+
+
+
+
+

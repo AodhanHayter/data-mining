@@ -1,0 +1,361 @@
+---
+title: "C5.0 titanic tutorial"
+author: "Olivia Sheng"
+date: "September 16, 2016"
+output: 
+  html_document:
+    number_sections: yes
+    toc: yes
+    highlight: breezedark
+    fig_width: 15
+    fig_height: 10
+editor_options: 
+  chunk_output_type: console
+---
+# Data Description
+
+The sinking of the RMS Titanic is one of the most infamous shipwrecks in history.
+On April 15, 1912, during her maiden voyage, the Titanic sank after colliding with 
+an iceberg, killing 1502 out of 2224 passengers and crew.
+This sensational tragedy shocked the international community and led to better 
+safety regulations for ships.One of the reasons that the shipwreck led to such 
+loss of life was that there were not enough lifeboats for the passengers and crew. 
+Although there was some element of luck involved in surviving the sinking, 
+some groups of people such as women, children, and the upper-class 
+were more likely to survive than others.
+
+VARIABLE DESCRIPTIONS:
+
+PassengerID     Unique passenger identifier
+Survived        Survival (0 = No; 1 = Yes)
+Pclass          Passenger Class(1 = 1st; 2 = 2nd; 3 = 3rd) (Pclass is a proxy for socio-economic status (SES)
+                     1st ~ Upper; 2nd ~ Middle; 3rd ~ Lower)
+Name            Name
+Sex             Sex
+Age             Age (Age is in Years; Fractional if Age less than One (1) If the Age is Estimated, it is in the form xx.5)
+Sibsp           Number of Siblings/Spouses Aboard
+Parch           Number of Parents/Children Aboard
+Ticket          Ticket Number
+Fare            Passenger Fare
+Cabin           Cabin
+Embarked        Port of Embarkation (C = Cherbourg; Q = Queenstown; S = Southampton)
+
+# Set up, data import and inspections
+```{r - Set up, data import and inspections}
+
+# Load packages after they have been installed
+# Package loading. Install the following packages before running this chunk or knitting this program.
+
+library(C50)
+library(scatterplot3d)
+library(caret)
+library(rminer)
+library(rmarkdown)
+library(tictoc) 
+tic()
+
+# Import titanic_cleaned.csv file
+# setwd("/cloud/project")
+cloud_wd <- getwd()
+setwd(cloud_wd)
+
+titanic <- read.csv(file = "titanic_cleaned.csv", stringsAsFactors = FALSE)
+
+### Examine the overall data frame
+
+str(titanic)
+summary(titanic)
+
+# Change Survived and other nominal variables to factors. # Re-examine the over data frame afterwar.
+
+titanic$Survived <- factor(titanic$Survived)
+titanic$Sex <- factor(titanic$Sex)
+titanic$Pclass <- factor(titanic$Pclass)
+titanic$Cabin <- factor(titanic$Cabin)
+titanic$Embarked <- factor(titanic$Embarked)
+
+str(titanic)
+summary(titanic)
+```
+
+# Build decision trees using C5.0 in C50 package
+
+```{r Build decision trees}
+# C50 includes functions for building and visualizing a decisioin tree model
+# based on Quinlan's C5.0 algorithm
+# C50 documentation - https://cran.r-project.org/web/packages/C50/C50.pdf
+
+# Call C5.0 function to build a classification model.
+# The first argument in C5.0: titanic$Survived~. indicates the target variable is titanic$Survived
+# All other variables are predictors for it
+# The second argument indicates that the whole data set - titanic is the training set
+# Use ?C5.0 to see help info for C5.0 
+# Expand titanic_w1_C50 in the Environment pane to find out more about the model
+
+titanic_w1_c50 <- C5.0(Survived~.,titanic)
+
+# Enter the model name to find out tree size (i.e. the number of leaves)
+# Use plot() to plot the tree. It does not plot the tree 
+# if the tree is too complex or the nodes or branches include a lot of information
+# Use summary() to find out the tree model expressed in rules, 
+# the confusion matrix (or contigency matrix), and the error rate.
+
+titanic_w1_c50
+# plot(titanic_w1_c50)
+summary(titanic_w1_c50)
+
+# An alternative C5.0 call to build the same model.
+# The 1st argument in C5.0() specifies the predictors to be used.
+# The 2nd argument indicates the target variable.
+# Let's remove Cabin.
+
+titanic_w2_c50 <- C5.0(titanic[c(-1,-8)],titanic$Survived)
+titanic_w2_c50
+# plot(titanic_w2_c50)
+summary(titanic_w2_c50)
+```
+# Post-model-building data exploration
+```{r Data visualization}
+# Partition the whole titanic data frame into female and male for data exploration
+
+titanicf <- subset(titanic, Sex == "female")
+titanicm <- subset(titanic, Sex == "male")
+
+# Examine the overall data frames
+
+summary(titanicf)
+summary(titanicm)
+
+# Examine factor variables: Use table to find out count per Pclass (Embarked) by Survived in titanicf and titanicm separately
+
+table(titanicf$Survived,titanicf$Pclass)
+table(titanicm$Survived, titanicm$Pclass)
+
+table(titanicf$Survived,titanicf$Embarked)
+table(titanicm$Survived, titanicm$Embarked)
+
+# Examine boxplots to examine numeric variables
+
+boxplot(Age~Survived, data = titanicf, main = "boxplot of female titanic: Age by Surived")
+boxplot(Parch~Survived, data = titanicf, main = "boxplot of female titanic: Parch by Surived")
+boxplot(SibSp~Survived, data = titanicf, main = "boxplot of female titanic: SibSp by Surived")
+boxplot(Fare~Survived, data = titanicf, main = "boxplot of female titanic: Fare by Surived")
+
+boxplot(Age~Survived, data = titanicm, main = "boxplot of male titanic: Age by Surived")
+boxplot(Parch~Survived, data = titanicm, main = "boxplot of male titanic: Parch by Surived")
+boxplot(SibSp~Survived, data = titanicm, main = "boxplot of male titanic: SibSp by Surived")
+boxplot(Fare~Survived, data = titanicm, main = "boxplot of male titanic: Fare by Surived")
+
+# Examine two or three variables against Survived in titanicf
+
+plot(titanicf$Parch,titanicf$Pclass, col = as.numeric(titanicf$Survived),  main = "2D scatter plot of titanic females' Parch vs Pclass")
+
+palette()
+
+plot(titanicf$Fare, titanicf$Pclass, col = as.numeric(titanicf$Survived),  main = "2D scatter plot of titanic females' Pclass vs Fare")
+
+scatterplot3d(titanicf$Pclass,titanicf$Fare,titanicf$Parch, pch = as.numeric(titanicf$Survived), main = "3D scatter plot of female titanic data")
+
+legend('topright', legend = levels(titanicf$Survived),  pch = 1:2)
+
+# Examine two or three variables against Survived in titanicm
+
+plot(titanicm$Age,titanicm$SibSp, pch = as.numeric(titanicm$Survived), main = "2D scatter plot of males' SibSp and Age")
+legend('topright', legend = levels(titanic$Survived),  cex = 0.8, pch = 1:2)
+
+plot(titanicm$Age,titanicm$Pclass, pch = as.numeric(titanicm$Survived), main = "2D scatter plot of titanic males' Pclass vs Age")
+legend('topright', legend = levels(titanic$Survived),  cex = 0.8, pch = 1:2)
+
+scatterplot3d(titanicm$SibSp,titanicm$Age,titanicm$Pclass, pch = as.numeric(titanicm$Survived), main = "3D scatter plot of female titanic data")
+legend('topright', legend = levels(titanicf$Survived),  pch = 1:2)
+```
+
+# Generate performance metrics
+
+```{r Generate performance metrics}
+# Derive classification performance metrics using mmetric() in rminer package.
+# rminer builds, tests and evaluates a variety of classification and regression models.
+# rminer documentation - https://cran.r-project.org/web/packages/rminer/rminer.pdf
+
+# predict() applies a model (1st argument) to a testing data set (2nd argument).
+# Let's apply it to the whole data set that was used to train the model 
+# to see the model's performance metrics in training data (i.e., not holdout evaluation)
+# Take a look at the structure and summary of predicted_Survived_w1 to understand the output of predict()
+
+# Evaluate titanic_w1
+
+predicted_Survived_w1 <- predict(titanic_w1_c50, titanic)
+str(predicted_Survived_w1)
+summary(predicted_Survived_w1)
+
+# mmetric() generates confusion matrix (3rd argument) based on the true target variable values (1st argument)
+# and the predicted target variable values (2nd argument) 
+
+mmetric(titanic$Survived, predicted_Survived_w1, metric="CONF")
+
+# Take a look at the applicable classification metrics mmetric() an generate
+
+mmetric(titanic$Survived, predicted_Survived_w1, metric="ALL")
+
+# Initially we only focus on a few classification metrics the following mmetric() generates. 
+# Remember to use combine - c() when you select more than one metric (or metric group) name
+
+mmetric(titanic$Survived, predicted_Survived_w1, metric=c("ACC","TPR","PRECISION","F1"))
+
+# Evaluate titanic_w2
+
+predicted_Survived_w2 <- predict(titanic_w2_c50, titanic)
+str(predicted_Survived_w2)
+summary(predicted_Survived_w2)
+
+# mmetric() generates confusion matrix (3rd argument) based on the true target variable values (1st argument)
+# and the predicted target variable values (2nd argument) 
+
+mmetric(titanic$Survived, predicted_Survived_w2, metric="CONF")
+
+# Take a look at the applicatble classification metrics mmetric() an generate
+
+mmetric(titanic$Survived, predicted_Survived_w2, metric="ALL")
+
+# Initially we only focus on a few classification metrics the following mmetric() generates. 
+# Remember to use combine - c() when you select more than one metric (or metric group) name
+
+mmetric(titanic$Survived, predicted_Survived_w2, metric=c("ACC","TPR","PRECISION","F1"))
+```
+# Simple hold-out evaluation
+
+```{r Simple hold-out evaluation}
+
+# Examine the impacts of simple hold-out evaluation, the training set size, the feature selection and the pruning factor - CF
+
+# Only knowing the model's training performance is not sufficient. Let's try a simple hold-out evaluation. 
+
+# Use createDataPartition() in caret package to split titanic 50%-50% into a train set and a test set
+# caret introduction: https://cran.r-project.org/web/packages/caret/vignettes/caret.pdf
+# or use ?caret to find this introduction and other documentation
+
+# set seed to a value for createDataPartition(). With the same value and input, 
+# the partitions output will be consistent each time the following commands are executed.
+
+set.seed(100)
+inTrain <- createDataPartition(titanic$Survived, p=0.5, list=FALSE)
+
+# inTrain is a list of indices to the rows in the titanic data frame
+
+str(inTrain)
+# inTrain
+
+# Assign the rows in titanic indexed by inTrain to create a train set
+# Assign all other rows indexed by -inTrain to create a test set
+
+titanicTrain <- titanic[inTrain,]
+titanicTest <- titanic[-inTrain,]
+
+# Examine the distributions of the target variable and other attriutes of train and test sets
+# Make sure that they are consistent between train and test sets.
+
+summary(titanicTrain)
+summary(titanicTest)
+
+table(titanicTrain$Survived)
+table(titanicTest$Survived)
+
+prop.table(table(titanicTrain$Survived))
+prop.table(table(titanicTest$Survived))
+
+# Use the train set to build a model
+
+titanic_m1_c50 <- C5.0(Survived~., titanicTrain)
+titanic_m1_c50
+plot(titanic_m1_c50)
+summary(titanic_m1_c50)
+
+# Apply the model to the hold-out test set and generate holdout evaluation metrics
+
+predicted_Survived_test1 <- predict(titanic_m1_c50, titanicTest)
+
+
+# mmetric() generates confusion matrix (3rd argument) based on the true target variable values (1st argument)
+# and the predicted target variable values (2nd argument) 
+
+mmetric(titanicTest$Survived, predicted_Survived_test1, metric="CONF")
+
+mmetric(titanicTest$Survived, predicted_Survived_test1, metric=c("ACC","TPR","PRECISION","F1"))
+
+# For comparison, apply the model to the train set and generate evaluation metrics. 
+# Check out the performance drop in the holdout set.
+
+predicted_Survived_train1 <- predict(titanic_m1_c50, titanicTrain)
+
+mmetric(titanicTrain$Survived, predicted_Survived_train1, metric="CONF")
+
+mmetric(titanicTrain$Survived, predicted_Survived_train1, metric=c("ACC","TPR","PRECISION","F1"))
+
+### Remove Cabin
+
+# Use the train set to build a model
+
+titanic_m2_c50 <- C5.0(titanicTrain[c(-1,-8)], titanicTrain$Survived)
+titanic_m2_c50
+plot(titanic_m2_c50)
+summary(titanic_m2_c50)
+
+
+# Apply the model to the hold-out test set and generate holdout evaluation metrics
+
+predicted_Survived_test2 <- predict(titanic_m2_c50, titanicTest)
+
+
+# mmetric() generates confusion matrix (3rd argument) based on the true target variable values (1st argument)
+# and the predicted target variable values (2nd argument) 
+
+mmetric(titanicTest$Survived, predicted_Survived_test2, metric="CONF")
+
+mmetric(titanicTest$Survived, predicted_Survived_test2, metric=c("ACC","TPR","PRECISION","F1"))
+
+# For comparison, apply the model to the train set and generate evaluation metrics. 
+# Check out the performance drop in the holdout set.
+
+predicted_Survived_train2 <- predict(titanic_m2_c50, titanicTrain)
+
+mmetric(titanicTrain$Survived, predicted_Survived_train2, metric="CONF")
+
+mmetric(titanicTrain$Survived, predicted_Survived_train2, metric=c("ACC","TPR","PRECISION","F1"))
+```
+
+# Tree pruning/unpruning
+
+```{r Prune-unprune decision trees}
+# Change the CF(confidenceFactor) value to prune or unprune a tree. 
+# Default CF is 0.25, higher CF unprunes the tree, while lower CF prune the tree more.
+
+# Use the train set to build a model
+
+titanic_m3_c50 <- C5.0(titanicTrain[-1], titanicTrain$Survived, control = C5.0Control(CF = 0.8))
+titanic_m3_c50
+plot(titanic_m3_c50)
+summary(titanic_m3_c50)
+
+# Apply the model to the hold-out test set and generate holdout evaluation metrics
+
+predicted_Survived_test3 <- predict(titanic_m3_c50, titanicTest)
+
+# mmetric() generates confusion matrix (3rd argument) based on the true target variable values (1st argument)
+# and the predicted target variable values (2nd argument) 
+
+mmetric(titanicTest$Survived, predicted_Survived_test3, metric="CONF")
+
+mmetric(titanicTest$Survived, predicted_Survived_test3, metric=c("ACC","TPR","PRECISION","F1"))
+
+# For comparison, apply the model to the train set and generate evaluation metrics. 
+# Check out the performance drop in the holdout set.
+
+predicted_Survived_train3 <- predict(titanic_m3_c50, titanicTrain)
+
+mmetric(titanicTrain$Survived, predicted_Survived_train3, metric="CONF")
+
+mmetric(titanicTrain$Survived, predicted_Survived_train3, metric=c("ACC","TPR","PRECISION","F1"))
+
+# End of C5.0 Titanic Tutorial
+toc()
+```

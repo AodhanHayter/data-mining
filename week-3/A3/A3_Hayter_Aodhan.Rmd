@@ -1,0 +1,191 @@
+---
+title: "A3"
+author: "Aodhan Hayter"
+date: "February 3, 2022"
+output:
+  html_document:
+    theme: readable
+    highlight: breezedark
+    number_sections: yes
+    toc: yes
+    fig_width: 25
+    fig_height: 15
+editor_options:
+  chunk_output_type: console
+---
+
+```{r echo=FALSE}
+library(data.table)
+library(C50)
+library(caret)
+library(rminer)
+library(e1071)
+library(matrixStats)
+library(knitr)
+```
+
+## 1.A Import data
+```{r Setup/Import data}
+input_file <- "../../data/CD_additional_modified-1.csv"
+
+work_dir <- getwd()
+setwd(work_dir)
+
+cd_df <- read.csv(input_file, stringsAsFactors = T)
+cd_data <- data.table(cd_df)
+
+str(cd_data)
+summary(cd_data)
+```
+
+## 1.B Partition Data
+```{r partition data}
+set.seed(123)
+cd_train_part <- createDataPartition(cd_data$y, p = 0.7, list = F)
+
+cd_train <- cd_data[cd_train_part,]
+cd_test <- cd_data[-cd_train_part,]
+```
+
+## 1.C Data distributions
+```{r distributions}
+prop.table(table(cd_data$y))
+prop.table(table(cd_train$y))
+prop.table(table(cd_test$y))
+```
+
+## 2.A Train and test decision tree 1: y ~ .
+```{r train decision tree model}
+(dec_tree_mod <- C5.0(y ~ ., cd_train))
+summary(dec_tree_mod)
+
+predicted_dec_tree_test <- predict(dec_tree_mod, cd_test)
+mmetric(cd_test$y, predicted_dec_tree_test, metric = "CONF")
+mmetric(cd_test$y, predicted_dec_tree_test, metric = c("ACC", "TPR", "PRECISION", "F1"))
+
+predicted_dec_tree_train <- predict(dec_tree_mod, cd_train)
+mmetric(cd_train$y, predicted_dec_tree_train, metric = "CONF")
+mmetric(cd_train$y, predicted_dec_tree_train, metric = c("ACC", "TPR", "PRECISION", "F1"))
+```
+
+## 2.B Simpler decision tree
+```{r train more simple decision tree}
+(simple_dec_mod <- C5.0(y ~ ., cd_train, control = C5.0Control(CF = 0.0005)))
+summary(simple_dec_mod)
+plot(simple_dec_mod)
+
+predicted_dec_mod_test <- predict(simple_dec_mod, cd_test)
+mmetric(cd_test$y, predicted_dec_mod_test, metric = "CONF")
+mmetric(cd_test$y, predicted_dec_mod_test, metric = c("ACC", "TPR", "PRECISION", "F1"))
+
+predicted_dec_mod_train <- predict(simple_dec_mod, cd_train)
+mmetric(cd_train$y, predicted_dec_mod_train, metric = "CONF")
+mmetric(cd_train$y, predicted_dec_mod_train, metric = c("ACC", "TPR", "PRECISION", "F1"))
+```
+
+## 3.A Naïve Bayes model
+```{r train naive bayes model}
+(nb_mod <- naiveBayes(y ~ ., data = cd_train))
+
+predicted_nb_mod_train <- predict(nb_mod, cd_train)
+mmetric(cd_train$y, predicted_nb_mod_train, metric = "CONF")
+mmetric(cd_train$y, predicted_nb_mod_train, metric = c("ACC", "TPR", "PRECISION", "F1"))
+
+predicted_nb_mod_test <- predict(nb_mod, cd_test)
+mmetric(cd_test$y, predicted_nb_mod_test, metric = "CONF")
+mmetric(cd_test$y, predicted_nb_mod_test, metric = c("ACC", "TPR", "PRECISION", "F1"))
+```
+
+## 3.B NB model: no "cons.price.idx"
+```{r train no "cons.price.idx"}
+(nb_mod_no_price <- naiveBayes(y ~ ., data = cd_train[, !"cons.price.idx"]))
+
+predicted_no_price_train <- predict(nb_mod_no_price, cd_train)
+mmetric(cd_train$y, predicted_no_price_train, metric = "CONF")
+mmetric(cd_train$y, predicted_no_price_train, metric = c("ACC", "TPR", "PRECISION", "F1"))
+
+predicted_no_price_test <- predict(nb_mod_no_price, cd_test)
+mmetric(cd_test$y, predicted_no_price_test, metric = "CONF")
+mmetric(cd_test$y, predicted_no_price_test, metric = c("ACC", "TPR", "PRECISION", "F1"))
+```
+
+## 4 Cross Validation Function
+```{r cv function}
+cv_function <- function(df, target, nFolds, seedVal, classification, metrics_list) {
+  set.seed(seedVal)
+  folds <- createFolds(df[, target], nFolds)
+
+  cv_results <- lapply(folds, function(x) {
+    train <- df[-x, -target]
+    test <- df[x, -target]
+
+    train_target <- df[-x, target]
+    test_target <- df[x, target]
+
+    classification_model <- classification(train, train_target)
+
+    pred <- predict(classification_model, test)
+
+    return(mmetric(test_target, pred, c("ACC", "PRECISION", "TPR", "F1")))
+  })
+
+  cv_results_m <- as.matrix(as.data.frame(cv_results))
+
+  cv_mean <- as.matrix(rowMeans(cv_results_m))
+
+  colnames(cv_mean) <- "Mean"
+
+  cv_sd <- as.matrix(rowSds(cv_results_m))
+
+  colnames(cv_sd) <- "Sd"
+
+  cv_all <- cbind(cv_results_m, cv_mean, cv_sd)
+
+  kable(cv_all, digits = 2)
+}
+```
+
+## 5 Fold evaluation
+```{r 5-fold}
+df <- cd_df
+target <- 21 # cd_df$y
+nFolds <- 5
+seedVal <- 123
+metrics_list <- c("ACC","PRECISION","TPR","F1")
+```
+
+## Naive Bayes
+```{r 5-fold naive bayes}
+assign("classification", naiveBayes)
+cv_function(df, target, nFolds, seedVal, classification, metrics_list)
+```
+
+## Decision Tree
+```{r 5-fold decision tree}
+assign("classification", C5.0)
+cv_function(df, target, nFolds, seedVal, classification, metrics_list)
+
+```
+
+## 10 Fold evaluation
+```{r 10-fold eval}
+df <- cd_df
+target <- 21 # cd_df$y
+nFolds <-10 
+seedVal <- 123
+metrics_list <- c("ACC","PRECISION","TPR","F1")
+
+```
+
+## Naive Bayes
+```{r 10-fold naiveBayes}
+assign("classification", naiveBayes)
+cv_function(df, target, nFolds, seedVal, classification, metrics_list)
+
+```
+
+## Decision Tree
+```{r 10-fold decision tree}
+assign("classification", C5.0)
+cv_function(df, target, nFolds, seedVal, classification, metrics_list)
+```

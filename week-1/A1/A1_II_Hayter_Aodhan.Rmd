@@ -1,0 +1,123 @@
+---
+title: "A1 - part 2"
+author: "Aodhan Hayter"
+date: "January 16, 2022"
+output:
+  html_document:
+    theme: readable
+    highlight: breezedark
+    number_sections: yes
+    toc: yes
+    fig_width: 25
+    fig_height: 15
+editor_options:
+  chunk_output_type: console
+---
+
+```{r echo=FALSE}
+library(data.table)
+library(psych)
+library(scatterplot3d)
+```
+
+## Load Dataset
+```{r Setup / Import Data}
+input_file <- "CD_additional_balanced.csv"
+
+work_dir <- getwd()
+setwd(work_dir)
+
+cd_data <- read.csv(file = input_file, stringsAsFactors = F)
+```
+
+## Inspect and factor dataset
+```{r Inspect / Factor dataset}
+cd_dt <- data.table(cd_data)
+
+factor_cols <- c("job", "marital", "education", "default", "housing", "loan", "contact", "month", "day_of_week", "poutcome", "y")
+for (col in factor_cols)
+  cd_dt[, (col) := as.factor(cd_dt[[col]])]
+
+str(cd_dt)
+summary(cd_dt)
+```
+
+## Histrograms: Age, Duration, Campaign, Pdays
+```{r histograms}
+hist(cd_dt$age, main = "Histogram of Age", xlab = "Age")
+boxplot(cd_dt$age, main = "Boxplot of Age", ylab = "Age")
+quantile(cd_dt$age, seq(from = 0, to = 1, by = 0.10))
+
+hist(cd_dt$duration, main = "Histogram of Duration", xlab = "Duration")
+boxplot(cd_dt$duration, main = "Boxplot of Duration", ylab = "Duration")
+quantile(cd_dt$duration, seq(from = 0, to = 1, by = 0.10))
+
+hist(cd_dt$campaign, main = "Histogram of Campaign", xlab = "Campaign")
+boxplot(cd_dt$campaign, main = "Boxplot of Campaign", ylab = "Campaign")
+quantile(cd_dt$campaign, seq(from = 0, to = 1, by = 0.10))
+
+hist(cd_dt$pdays, main = "Histogram of Pdays", xlab = "Pdays")
+boxplot(cd_dt$pdays, main = "Boxplot of Pdays", ylab = "Pdays")
+quantile(cd_dt$pdays, seq(from = 0, to = 1, by = 0.10))
+```
+
+## CD subscription (y), job, education, poutcome
+```{r}
+(job_table <- table(cd_dt$job))
+job_prop_table <- prop.table(job_table)
+round(job_prop_table, digits = 2)
+barplot(job_table, main = "Job")
+
+(edu_table <- table(cd_dt$education))
+edu_prop_table <- prop.table(edu_table)
+round(edu_prop_table, digits = 2)
+barplot(edu_table, main = "Education Level")
+
+(poutcome_table <- table(cd_dt$poutcome))
+poutcome_prop_table <- prop.table(poutcome_table)
+round(poutcome_prop_table, digits = 2)
+barplot(poutcome_table, main = "Previous Outcome")
+
+(y_table <- table(cd_dt$y))
+y_prop_table <- prop.table(y_table)
+round(y_prop_table, digits = 2)
+barplot(y_table, main = "CD Subscribed")
+```
+
+## Variable Relationships
+```{r}
+rel_cols <- c("age", "duration", "campaign", "pdays", "euribor3m", "emp.var.rate", "nr.employed")
+cor(cd_dt[, ..rel_cols])
+
+pairs.panels(cd_dt[, ..rel_cols])
+
+boxplot(age ~ y, data = cd_dt)
+aggregate(age ~ y, summary, data = cd_dt)
+
+boxplot(duration ~ y, data = cd_dt)
+aggregate(duration ~ y, summary, data = cd_dt)
+
+boxplot(campaign ~ y, data = cd_dt)
+aggregate(campaign ~ y, summary, data = cd_dt)
+
+boxplot(pdays ~ y, data = cd_dt)
+aggregate(pdays ~ y, summary, data = cd_dt)
+
+boxplot(euribor3m ~ y, data = cd_dt)
+aggregate(euribor3m ~ y, summary, data = cd_dt)
+
+boxplot(emp.var.rate ~ y, data = cd_dt)
+aggregate(emp.var.rate ~ y, summary, data = cd_dt)
+
+boxplot(nr.employed ~ y, data = cd_dt)
+aggregate(nr.employed ~ y, summary, data = cd_dt)
+```
+
+## Scatterplots
+```{r}
+scatterplot3d(cd_dt$age, cd_dt$campaign, cd_dt$duration, highlight.3d = T, pch = as.numeric(cd_dt$y), main = "3D Scatterplot of CD data")
+legend('topright', legend = levels(cd_dt$y),  col = 1:2, cex = 0.8, pch = 1:2)
+
+scatterplot3d(cd_dt$nr.employed, cd_dt$euribor3m, cd_dt$duration, highlight.3d = T, pch = as.numeric(cd_dt$y), main = "3D Scatterplot of CD data")
+legend('topright', legend = levels(cd_dt$y),  col = 1:2, cex = 0.8, pch = 1:2)
+```

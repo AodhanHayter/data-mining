@@ -1,0 +1,263 @@
+---
+title: "A4"
+author: "Aodhan Hayter"
+date: "February 12, 2022"
+output:
+  html_document:
+    theme: readable
+    highlight: breezedark
+    number_sections: yes
+    toc: yes
+    fig_width: 25
+    fig_height: 15
+editor_options:
+  chunk_output_type: console
+---
+
+# 1.A Load libraries / Import data
+```{r echo=FALSE}
+library(psych)
+library(rpart)
+library(RWeka)
+library(caret)
+library(rminer)
+library(matrixStats)
+library(knitr)
+library(data.table)
+```
+
+```{r import data}
+input_file <- "../../data/NA_sales_filtered.csv"
+
+work_dir <- getwd()
+setwd(work_dir)
+
+sales_df <- read.csv(input_file)
+sales_dt <- data.table(sales_df)
+
+str(sales_dt)
+summary(sales_dt)
+
+factor_cols <- c("Platform", "Genre", "Rating")
+for (col in factor_cols)
+  sales_dt[, (col) := as.factor(sales_dt[[col]])]
+
+```
+
+# 1.B Show distributions and correlations
+```{r show distributions}
+pairs.panels(sales_dt[, c("Critic_Score", "Critic_Count", "User_Score", "User_Count", "NA_Sales")])
+```
+
+# 1.C Build Linear Regression Model
+```{r build lm}
+# Remove "Name" column
+sales_dt[, Name:=NULL]
+
+summary(lm(NA_Sales ~ ., data = sales_dt))
+```
+
+# 1.D Partition Data
+```{r partition data}
+set.seed(123)
+sales_data_train <- createDataPartition(sales_dt$NA_Sales, p = 0.7, list = F)
+
+sales_train <- as.data.frame(sales_dt[sales_data_train,])
+sales_test <- as.data.frame(sales_dt[-sales_data_train,])
+```
+
+# 1.E Test / Training Summary
+```{r test/train summary}
+summary(sales_train)
+summary(sales_test)
+```
+
+# 2.A Train 3 models
+```{r train 3 models}
+set.seed(123)
+simple_lm <- lm(NA_Sales ~ ., data = sales_train)
+
+rpart_mod <- rpart(NA_Sales ~ ., data = sales_train)
+
+m5p_mod <- M5P(NA_Sales ~ ., data = sales_train)
+```
+
+#2.B
+```{r setup data for predictions }
+train_target <- sales_dt[sales_data_train,]$NA_Sales
+test_target <- sales_dt[-sales_data_train,]$NA_Sales
+```
+
+## Linear Model
+```{r linear model}
+summary(simple_lm)
+
+test_predictions <- predict(simple_lm, sales_test)
+train_predictions <- predict(simple_lm, sales_train)
+
+# test metrics
+mmetric(test_target, test_predictions, c("MAE", "MAPE", "RAE", "RMSE", "RMSPE", "RRSE", "R2"))
+# train metrics
+mmetric(train_target, train_predictions, c("MAE", "MAPE", "RAE", "RMSE", "RMSPE", "RRSE", "R2"))
+```
+
+## Rpart model
+```{r rpart model}
+summary(rpart_mod)
+
+test_predictions <- predict(rpart_mod, sales_test)
+train_predictions <- predict(rpart_mod, sales_train)
+
+# test metric
+mmetric(test_target, test_predictions, c("MAE", "MAPE", "RAE", "RMSE", "RMSPE", "RRSE", "R2"))
+# train metrics
+mmetric(train_target, train_predictions, c("MAE", "MAPE", "RAE", "RMSE", "RMSPE", "RRSE", "R2"))
+```
+
+## M5P model
+```{r m5p model}
+summary(m5p_mod)
+
+test_predictions <- predict(m5p_mod, sales_test)
+train_predictions <- predict(m5p_mod, sales_train)
+
+# test metric
+mmetric(test_target, test_predictions, c("MAE", "MAPE", "RAE", "RMSE", "RMSPE", "RRSE", "R2"))
+# train metrics
+mmetric(train_target, train_predictions, c("MAE", "MAPE", "RAE", "RMSE", "RMSPE", "RRSE", "R2"))
+```
+
+# 3.A Cross validation function
+```{r cross-validation function}
+do_cv_for_method <- function(df, target, nFolds, seedVal, prediction_method, metrics_list) {
+  set.seed(seedVal)
+  folds = createFolds(df[,target],nFolds) 
+  
+  cv_results <- lapply(folds, function(x)
+  { 
+    test_target <- df[x,target]
+    test_input  <- df[x,-target]
+
+    train_target <- df[-x,target]
+    train_input <- df[-x,-target]
+
+    prediction_model <- prediction_method(train_target~.,train_input) 
+    pred<- predict(prediction_model,test_input)
+    return(mmetric(test_target,pred,metrics_list))
+  })
+  
+  cv_results_m <- as.matrix(as.data.frame(cv_results))
+  cv_mean<- as.matrix(rowMeans(cv_results_m))
+  cv_sd <- as.matrix(rowSds(cv_results_m))
+  colnames(cv_mean) <- "Mean"
+  colnames(cv_sd) <- "Sd"
+  cv_all <- cbind(cv_results_m, cv_mean, cv_sd)
+  kable(t(cv_all),digits=2)
+}
+```
+
+# 3.B Croass Validations
+
+## Linear Model
+```{r cv linear model}
+
+df <- as.data.frame(sales_dt)
+target <- 8
+nFolds <- 5
+seedVal <- 123 
+metrics_list <- c("MAE", "MAPE", "RAE", "RMSE", "RMSPE", "RRSE", "R2")
+assign("prediction_method", lm)
+
+do_cv_for_method(df, target, nFolds, seedVal, prediction_method, metrics_list)
+```
+
+## RPart Model
+```{r cv rpart model}
+assign("prediction_method", rpart)
+
+do_cv_for_method(df, target, nFolds, seedVal, prediction_method, metrics_list)
+```
+
+## M5P Model
+```{r cv m5p model}
+
+assign("prediction_method", M5P)
+
+do_cv_for_method(df, target, nFolds, seedVal, prediction_method, metrics_list)
+```
+
+# 4.A Add quadratic **Critic_Score_Squared**
+```{r critic score squared}
+sales_dt[, Critic_Score_Squared := Critic_Score^2]
+```
+
+# 4.B
+```{r build quad model}
+quad_lm_mod <- lm(NA_Sales ~ ., data = sales_dt)
+
+summary(quad_lm_mod)
+```
+
+# 4.C
+```{r cv quad models}
+df <- as.data.frame(sales_dt)
+target <- 8
+nFolds <- 5
+seedVal <- 123 
+metrics_list <- c("MAE", "MAPE", "RAE", "RMSE", "RMSPE", "RRSE", "R2")
+
+assign("prediction_method", lm)
+do_cv_for_method(df, target, nFolds, seedVal, prediction_method, metrics_list)
+
+assign("prediction_method", rpart)
+do_cv_for_method(df, target, nFolds, seedVal, prediction_method, metrics_list)
+
+assign("prediction_method", M5P)
+do_cv_for_method(df, target, nFolds, seedVal, prediction_method, metrics_list)
+```
+
+# 5.A Add log_User_Count
+```{r log user count models}
+sales_dt[, log_User_Count := log(User_Count)]
+sales_dt[, User_Count := NULL]
+sales_dt[, Critic_Score_Squared := NULL]
+```
+
+# 5.B
+```{r build log model}
+log_lm_mod <- lm(NA_Sales ~ ., data = sales_dt)
+summary(log_lm_mod)
+```
+
+# 5.C
+```{r cv log models}
+df <- as.data.frame(sales_dt)
+target <- 7
+nFolds <- 5
+seedVal <- 123 
+metrics_list <- c("MAE", "MAPE", "RAE", "RMSE", "RMSPE", "RRSE", "R2")
+
+assign("prediction_method", lm)
+do_cv_for_method(df, target, nFolds, seedVal, prediction_method, metrics_list)
+
+assign("prediction_method", rpart)
+do_cv_for_method(df, target, nFolds, seedVal, prediction_method, metrics_list)
+
+assign("prediction_method", M5P)
+do_cv_for_method(df, target, nFolds, seedVal, prediction_method, metrics_list)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

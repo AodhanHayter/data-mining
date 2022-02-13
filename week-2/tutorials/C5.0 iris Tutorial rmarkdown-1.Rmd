@@ -1,0 +1,182 @@
+---
+title: "C5.0 Iris Tutorial"
+author: "Olivia Sheng"
+date: "September 16, 2016"
+output:
+  html_document:
+    theme: readable
+    highlight: breezedark
+    number_sections: yes
+    toc: yes
+    fig_width: 10
+    fig_height: 5
+editor_options: 
+  chunk_output_type: console
+---
+# Data description
+This is perhaps the best known database to be found in the pattern recognition literature.The data set contains 3 classes of 50 instances each, where each class refers to a type of iris plant.  One class is linearly separable from the other 2; the latter are NOT linearly separable from each other.
+
+Iris images: https://www.researchgate.net/figure/220371329_fig2_Fig-5-Iris-Setosa-Versicolor-and-Virginica-flowers-The-photos-are-from
+
+Target variable: class of iris plant. 
+
+Number of Instances: 150 (50 in each of three classes)
+
+Number of Attributes: 4 numeric, predictive attributes and the class variable
+
+Attribute Information:
+1. sepal length in cm
+2. sepal width in cm
+3. petal length in cm
+4. petal width in cm
+5. class: Iris Setosa, Iris Versicolour, Iris Virginica
+
+# Setup and overall data inspection
+```{r Setup and overall data inspection}
+# Package loading. Install the following packages before running this chunk or knitting this program.
+
+library(C50)
+library(caret)
+library(rminer)
+library(rmarkdown)
+library(tictoc) 
+tic()
+
+# R already has an iris data frame. Examine the overall data frame
+
+str(iris)
+summary(iris)
+```
+
+# Build a decision tree using C5.0 in C50 package
+
+```{r Build a decision tree}
+# C50 includes functions for building and visualizing a decisioin tree model
+# based on Quinlan's C5.0 algorithm
+# C50 documentation - https://cran.r-project.org/web/packages/C50/C50.pdf
+# Load C50 package. 
+
+# Call C5.0 function to build a classification model.
+# The first argument in C5.0: iris$Species~. indicates the target variable is iris$Species
+# All other variables are predictors for it
+# The second argument indicates that the whole data set - iris is the training set
+# Use ?C5.0 to see help info for C5.0 
+# Expand iris.C50 in the Environment pane to find out more about the model
+
+iris.c50 <- C5.0(iris$Species~.,iris)
+
+# Enter the model name to find out tree size (i.e. the number of leaves)
+# Use plot() to plot the tree. 
+# Note: plot() does not plot the tree if the tree is too complex
+# Use summary() to find out the tree model expressed in rules, 
+# the confusion matrix (or contigency matrix), and the error rate.
+
+iris.c50
+plot(iris.c50)
+summary(iris.c50)
+
+# An alternative C5.0 call to build the same model.
+# The 1st argument in C5.0() specifies the predictors to be used.
+# The 2nd argument indicates the target variable.
+# Compare the model information to see if the tree is identical to the last one built.
+
+iris.c50 <- C5.0(iris[-5],iris$Species)
+iris.c50
+plot(iris.c50)
+summary(iris.c50)
+```
+# Post-model-building data exploration
+```{r Data visualization}
+# Visualize the relationships amongst Petal.Width, Petal.Length and Species 
+# to see why it is meaningful to segment the data set by these two predictors
+
+with(iris, plot(Petal.Length,Petal.Width, col=Species, pch = as.numeric(Species), main = "2d scatter plot of iris data", sub = "Petal Width vs Length"))
+legend('topright', legend = levels(iris$Species),  col = 1:3, cex = 0.8, pch = 1:3)
+```
+
+# Derive classification performance metrics using mmetric() in rminer package.
+
+```{r Generate performance metrics}
+# rminer builds, tests and evaluates a variety of classification and regression models.
+# rminer documentation - https://cran.r-project.org/web/packages/rminer/rminer.pdf
+
+# predict() applies a model (1st argument) to a testing data set (2nd argument).
+# Let's apply it to the whole set that was used to train the model 
+# to see the model's performance metrics in training data (i.e., not holdout evaluation)
+# Take a look at the structure and summary of predicted.species to understand the output of predict()
+
+predicted.species <- predict(iris.c50, iris)
+str(predicted.species)
+summary(predicted.species)
+
+# mmetric() generates confusion matrix (3rd argument) based on the true target variable values (1st argument)
+# and the predicted target variable values (2nd argument) 
+
+mmetric(iris$Species, predicted.species, metric="CONF")
+
+# Take a look at the applicable classification metrics mmetric() can generate
+
+mmetric(iris$Species, predicted.species, metric="ALL")
+
+# Initially we only focus on a few classification metrics the following mmetric() generates. 
+# Remember to use combine - c() when you select more than one metric (or metric group) name
+
+mmetric(iris$Species, predicted.species, metric=c("ACC","TPR","PRECISION","F1"))
+```
+
+# Simple hold-out evaluation
+
+```{r Simple hold-out evaluation}
+# Only knowing the model's training performance is not sufficient. Let's try a simple hold-out evaluation. 
+
+# Use createDataPartition() in caret package to split iris 50%-50% into a train set and a test set
+# caret introduction: https://cran.r-project.org/web/packages/caret/vignettes/caret.pdf
+# or use ?caret to find this introduction and other documentation
+
+# set seed to a value for createDataPartition(). With the same value and input, 
+# the partitions output will be consistent each time the following commands are executed.
+
+set.seed(100)
+inTrain <- createDataPartition(iris$Species, p=0.5, list=FALSE)
+
+# inTrain is a list of indices to the rows in the iris data frame
+
+str(inTrain)
+inTrain
+
+# Assign the rows in iris indexed by inTrain to create a train set
+# Assign all other rows indexed by -inTrain to create a test set
+
+irisTrain <- iris[inTrain,]
+irisTest <- iris[-inTrain,]
+
+# Examine the distributions of Species and other attriutes of train and test sets
+# Make sure that they are consistent between train and test sets.
+
+summary(irisTrain)
+summary(irisTest)
+
+table(irisTrain$Species)
+table(irisTest$Species)
+
+prop.table(table(irisTrain$Species))
+prop.table(table(irisTest$Species))
+
+# Use the train set to build a model
+
+iris.c50 <- C5.0(irisTrain$Species~.,irisTrain)
+iris.c50
+plot(iris.c50)
+summary(iris.c50)
+
+# Apply the model to the hold-out test set and generate holdout evaluation metrics
+
+predicted.species <- predict(iris.c50, irisTest)
+predicted.species
+mmetric(irisTest$Species, predicted.species, metric="CONF")
+mmetric(irisTest$Species, predicted.species, metric=c("ACC","TPR","PRECISION","F1"))
+
+# End of C5.0 iris Tutorial
+
+toc()
+```

@@ -1,0 +1,156 @@
+---
+title: "NB Iris Tutorial"
+author: "Olivia Sheng"
+date: "September 16, 2016"
+output: 
+  html_document:
+    highlight: breezedark
+    number_sections: yes
+    toc: yes
+    fig_width: 10
+    fig_height: 5
+editor_options: 
+  chunk_output_type: console
+---
+# Data description
+This is perhaps the best known database to be found in the pattern recognition literature.The data set contains 3 classes of 50 instances each, where each class refers to a type of iris plant.  One class is linearly separable from the other 2; the latter are NOT linearly separable from each other.
+
+Iris images: https://www.researchgate.net/figure/220371329_fig2_Fig-5-Iris-Setosa-Versicolor-and-Virginica-flowers-The-photos-are-from
+
+Target variable: class of iris plant. 
+
+Number of Instances: 150 (50 in each of three classes)
+
+Number of Attributes: 4 numeric, predictive attributes and the class variable
+
+Attribute Information:
+1. sepal length in cm
+2. sepal width in cm
+3. petal length in cm
+4. petal width in cm
+5. class: Iris Setosa, Iris Versicolour, Iris Virginica
+
+# Setup and overall data inspection
+```{r Setup and overall data inspection}
+# Package loading. Install the following packages before running this chunk or knitting this program.
+
+library(e1071)
+library(psych)
+library(caret)
+library(rminer)
+library(rmarkdown)
+library(tictoc) 
+tic()
+
+# R already has an iris data frame. Examine the overall data frame
+
+str(iris)
+summary(iris)
+```
+
+# NB model building using e1071 package
+
+```{r NB model building}
+# e1071 includes a naiveBayes algorithm to build a Naive Bayesian classification model
+# e1071 documentation - https://cran.r-project.org/web/packages/e1071/e1071.pdf
+
+# Run ?naiveBayes to find out more information about naiveBayes 
+
+
+iris_nb_w <- naiveBayes(Species ~ ., data = iris)
+
+## alternatively, the two arguments in naiveBayes are the data frame with predictors only and the target varible colum
+
+iris_nb_w <- naiveBayes(iris[,-5], iris[,5])
+
+# Examine the Means and Sds of the predictors for the iris model
+
+iris_nb_w
+```
+
+# Explantory data exploration
+
+```{r Explanatory data exploration}
+# We can compare the model info to boxplots that group values of a numeric variable by Species 
+
+boxplot(Petal.Length~Species, data = iris, ylab = "Petal Length")
+boxplot(Petal.Width~Species, data = iris, ylab = "Petal Width")
+boxplot(Sepal.Length~Species, data = iris, ylab = "Speal Length")
+boxplot(Sepal.Width~Species, data = iris, ylab = "Speal Width")
+
+# Separate data by Species class
+
+df_setosa <- subset(iris, Species == "setosa")
+summary(df_setosa)
+df_versicolor <- subset(iris, Species == "versicolor")
+summary(df_versicolor)
+df_virginica <- subset(iris, Species == "virginica")
+summary(df_virginica)
+
+# Plot predictors' correlations by class
+
+pairs.panels(df_setosa[-5])
+pairs.panels(df_versicolor[-5])
+pairs.panels(df_virginica[-5])
+```
+
+# Generate performance metrics
+
+```{r}
+# Generate the predictions for the train set
+
+predicted_species <- predict(iris_nb_w, iris)
+
+mmetric(iris$Species, predicted_species, metric="CONF")
+
+mmetric(iris$Species, predicted_species, metric=c("ACC","TPR","PRECISION","F1"))
+```
+# Simple hold-out evaluation
+
+```{r Simple hold-out evaluation}
+# Use createDataPartition() in caret package to split iris 50%-50% into a train set and a test set
+
+# set seed to a value for createDataPartition(). With the same value and input, 
+# the partitions output will be consistent each time the following commands are executed.
+
+set.seed(100)
+inTrain <- createDataPartition(iris$Species, p=0.5, list=FALSE)
+
+# inTrain is a list of indices to the rows in the iris data frame
+
+str(inTrain)
+# inTrain
+
+# Assign the rows in iris indexed by inTrain to create a train set
+# Assign all other rows indexed by -inTrain to create a test set
+
+irisTrain <- iris[inTrain,]
+irisTest <- iris[-inTrain,]
+
+# Examine the distributions of Species and other attriutes of train and test sets
+# Make sure that they are consistent between train and test sets.
+
+summary(irisTrain)
+summary(irisTest)
+
+table(irisTrain$Species)
+table(irisTest$Species)
+
+prop.table(table(irisTrain$Species))
+prop.table(table(irisTest$Species))
+
+# Use the train set to build a model
+
+iris_nb <- naiveBayes(irisTrain$Species~.,irisTrain)
+iris_nb
+
+# Apply the model to the hold-out test set and generate holdout evaluation metrics
+
+predicted_species <- predict(iris_nb, irisTest)
+
+mmetric(irisTest$Species, predicted_species, metric="CONF")
+mmetric(irisTest$Species, predicted_species, metric=c("ACC","TPR","PRECISION","F1"))
+
+# End of naiveBayes iris Tutorial
+toc()
+```
